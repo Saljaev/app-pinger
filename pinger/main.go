@@ -2,25 +2,20 @@ package main
 
 import (
 	"app-pinger/pinger/service"
+	"app-pinger/pkg/loger"
 	"github.com/docker/docker/client"
 	"github.com/ilyakaznacheev/cleanenv"
 	"log"
 	"log/slog"
-	"os"
 	"sync"
 	"time"
 )
 
-const (
-	LevelDebug = "debug"
-	LevelInfo  = "info"
-)
-
 type ConfigPingerSvc struct {
-	LogLevel     string        `env:"log_level" env-default:"info"`
-	PacketsCount int           `env:"packets_count" env-default:"4"`
-	PingTimeout  time.Duration `env:"ping_timeout" env-default:"5s"`
-	SvcTimeout   time.Duration `env:"svc_ping_timeout" env-default:"10s"`
+	LogLevel     string        `env:"PINGER_LOG_LEVEL" env-default:"info"`
+	PacketsCount int           `env:"PINGER_PACKETS_COUNT" env-default:"4"`
+	PingTimeout  time.Duration `env:"PINGER_PING_TIMEOUT" env-default:"5s"`
+	SvcTimeout   time.Duration `env:"PINGER_SVC_PING_TIMEOUT" env-default:"10s"`
 }
 
 type Data struct {
@@ -32,19 +27,26 @@ func main() {
 	var cfg ConfigPingerSvc
 
 	if err := cleanenv.ReadEnv(&cfg); err != nil {
-		log.Println("Failed to read .env file, default value have been used")
+		log.Println("failed to read .env file, default value have been used")
 	}
 
-	log := setupLogger(cfg.LogLevel)
+	log := loger.SetupLogger(cfg.LogLevel)
+
+	log.Info("starting Pinger-Service")
+	log.Debug("debug message are enabled")
 
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
-		log.Error("Failed to open API client", slog.Any("error", err))
+		log.Error("failed to open API client", slog.Any("error", err))
 	}
 
 	defer cli.Close()
 
 	pinger := service.NewPingerService(service.NewGoPingerService(cli, log, cfg.PacketsCount, cfg.PingTimeout))
+
+	log.Info("pinger-service started")
+	log.Debug("service settings", slog.Any("service-timeout", cfg.SvcTimeout),
+		slog.Any("ping-packets", cfg.PacketsCount), slog.Any("ping-timeout", cfg.PingTimeout))
 
 	for {
 		ips := pinger.GetIPs()
@@ -72,23 +74,5 @@ func main() {
 		wg.Wait()
 
 		time.Sleep(cfg.SvcTimeout)
-
 	}
-}
-
-func setupLogger(level string) *slog.Logger {
-	var log *slog.Logger
-
-	switch level {
-	case LevelInfo:
-		log = slog.New(
-			slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}),
-		)
-	case LevelDebug:
-		log = slog.New(
-			slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}),
-		)
-	}
-
-	return log
 }

@@ -57,14 +57,14 @@ func NewGoPingerService(cli *client.Client, log *slog.Logger, pCount int, pTimeo
 }
 
 func (p *GoPinger) GetIPs() []string {
-	p.log.Debug("Starting get container list")
+	p.log.Debug("starting get container list")
 	containers, err := p.cli.ContainerList(context.Background(), containertypes.ListOptions{})
 	if err != nil {
 		p.log.Error("failed to get container list", slog.Any("error", err))
 		return nil
 	}
 
-	p.log.Debug("Successful get container list")
+	p.log.Debug("successful get container list")
 
 	var ips []string
 	for _, container := range containers {
@@ -78,12 +78,12 @@ func (p *GoPinger) GetIPs() []string {
 			ips = append(ips, netSettings.IPAddress)
 		}
 	}
-	p.log.Debug("Successful get IP-address", slog.Any("IP-address count", len(ips)))
+	p.log.Debug("successful get IP-address", slog.Any("IP-address count", len(ips)))
 	return ips
 }
 
 func (p *GoPinger) Ping(IP string) (bool, float64) {
-	p.log.Debug("Starting ping", slog.String("IP", IP))
+	p.log.Debug("starting ping", slog.String("IP", IP))
 	pinger, err := ping.NewPinger(IP)
 	if err != nil {
 		p.log.Error("failed to ping ", slog.String("IP", IP), slog.Any("error", err))
@@ -93,14 +93,14 @@ func (p *GoPinger) Ping(IP string) (bool, float64) {
 	pinger.Count = p.packetsCount
 	pinger.Timeout = p.pingTimeout
 
-	p.log.Debug("Ping settings", slog.Any("Packets count", pinger.Count),
+	p.log.Debug("ping settings", slog.Any("Packets count", pinger.Count),
 		slog.Any("Timeout", pinger.Timeout.Seconds()))
 
 	pinger.Run()
 	stats := pinger.Statistics()
 
 	if stats.PacketsRecv > 0 {
-		p.log.Info("Successful ping", slog.String("IP", IP), slog.Any("PacketsSend", pinger.Count),
+		p.log.Info("successful ping", slog.String("IP", IP), slog.Any("PacketsSend", pinger.Count),
 			slog.Any("PacketsReceived", pinger.PacketsRecv))
 		return true, stats.PacketLoss
 	}

@@ -6,6 +6,7 @@ WORKDIR /go/src/app-pinger/pinger
 RUN apk --update --no-cache add ca-certificates gcc libtool make musl-dev protoc git
 
 COPY pinger /go/src/app-pinger/pinger
+COPY pkg /go/src/app-pinger/pkg
 COPY go.mod /go/src/app-pinger
 COPY go.sum /go/src/app-pinger
 COPY .env /go/src/app-pinger
