@@ -2,25 +2,26 @@ package main
 
 import (
 	"app-pinger/pinger/service"
+	"app-pinger/pkg/contracts"
 	"app-pinger/pkg/loger"
+	"fmt"
 	"github.com/docker/docker/client"
 	"github.com/ilyakaznacheev/cleanenv"
 	"log"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 )
 
+// TODO: add MAKEFILE to generate default .env
 type ConfigPingerSvc struct {
-	LogLevel     string        `env:"PINGER_LOG_LEVEL" env-default:"info"`
-	PacketsCount int           `env:"PINGER_PACKETS_COUNT" env-default:"4"`
-	PingTimeout  time.Duration `env:"PINGER_PING_TIMEOUT" env-default:"5s"`
-	SvcTimeout   time.Duration `env:"PINGER_SVC_PING_TIMEOUT" env-default:"10s"`
-}
-
-type Data struct {
-	isReachable bool
-	packetLoss  float64
+	LogLevel     string        `env:"PINGER_LOG_LEVEL"`
+	PacketsCount int           `env:"PINGER_PACKETS_COUNT"`
+	PingTimeout  time.Duration `env:"PINGER_PING_TIMEOUT"`
+	SvcTimeout   time.Duration `env:"PINGER_SVC_PING_TIMEOUT" `
+	BackendName  string        `env:"BACKEND_NAME"`
+	BackendIP    string        `env:"ADDRESS"`
 }
 
 func main() {
@@ -30,9 +31,11 @@ func main() {
 		log.Println("failed to read .env file, default value have been used")
 	}
 
+	cfg.BackendIP = strings.Split(cfg.BackendIP, ":")[1]
+
 	log := loger.SetupLogger(cfg.LogLevel)
 
-	log.Info("starting Pinger-Service")
+	log.Info("starting pinger-server")
 	log.Debug("debug message are enabled")
 
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
@@ -44,14 +47,16 @@ func main() {
 
 	pinger := service.NewPingerService(service.NewGoPingerService(cli, log, cfg.PacketsCount, cfg.PingTimeout))
 
-	log.Info("pinger-service started")
+	log.Info("pinger-server started")
 	log.Debug("service settings", slog.Any("service-timeout", cfg.SvcTimeout),
 		slog.Any("ping-packets", cfg.PacketsCount), slog.Any("ping-timeout", cfg.PingTimeout))
 
 	for {
+		//TODO: return name of container
 		ips := pinger.GetIPs()
 
-		reach := make(map[string]Data)
+		//TODO: cache for ip containers
+		reach := []contracts.PingData{}
 
 		var wg sync.WaitGroup
 		var mutex = &sync.Mutex{}
@@ -61,17 +66,18 @@ func main() {
 
 			go func(ip string) {
 				defer wg.Done()
-				reachable, lossPacket := pinger.Ping(ip)
+				data := pinger.Ping(ip)
 				mutex.Lock()
-				reach[ip] = Data{
-					isReachable: reachable,
-					packetLoss:  lossPacket,
-				}
+				reach = append(reach, data)
 				mutex.Unlock()
 			}(ip)
 		}
-
 		wg.Wait()
+
+		err = pinger.SendRequest(fmt.Sprintf("http://%s:%s/container/add", cfg.BackendName, cfg.BackendIP), reach)
+		if err != nil {
+			log.Error("failed to send request", slog.Any("error", err))
+		}
 
 		time.Sleep(cfg.SvcTimeout)
 	}

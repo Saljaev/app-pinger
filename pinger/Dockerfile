@@ -20,6 +20,6 @@ FROM scratch
 COPY --from=builder /pinger pinger
 COPY --from=builder /go/src/app-pinger/.env ./
 
-EXPOSE 8080
+EXPOSE 8082
 
 ENTRYPOINT ["/pinger"]

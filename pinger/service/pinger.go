@@ -1,18 +1,33 @@
 package service
 
 import (
+	"app-pinger/pkg/contracts"
+	"bytes"
 	"context"
+	"encoding/json"
+	"fmt"
 	containertypes "github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
 	"github.com/go-ping/ping"
 	"log/slog"
+	"net/http"
 	"time"
 )
+
+func newPingData(IP string, isReachable bool, LastPing time.Time, PacketLost float64) contracts.PingData {
+	return contracts.PingData{
+		IPAddress:   IP,
+		IsReachable: isReachable,
+		LastPing:    LastPing.Format(time.DateTime),
+		PackerLost:  PacketLost,
+	}
+}
 
 // Pinger интерфейс, который определяет логику сервиса
 type Pinger interface {
 	GetIPs() []string
-	Ping(IP string) (bool, float64)
+	Ping(IP string) contracts.PingData
+	SendRequest(url string, data []contracts.PingData) error
 }
 
 // PingerSvc сервис, который выполняет бизнес логику сервиса
@@ -32,8 +47,13 @@ func (p *PingerSvc) GetIPs() []string {
 }
 
 // Ping пингует IP адрес, возвращает доступность адрес и процент потери пакетов
-func (p *PingerSvc) Ping(IP string) (bool, float64) {
+func (p *PingerSvc) Ping(IP string) contracts.PingData {
 	return p.Pinger.Ping(IP)
+}
+
+// SendRequest отправляет запрос к backend-svc с данными ping всех контейнеров
+func (p *PingerSvc) SendRequest(url string, data []contracts.PingData) error {
+	return p.Pinger.SendRequest(url, data)
 }
 
 // GoPinger реализация PingerSvc, основанная на Docker SDK и go-ping
@@ -82,12 +102,14 @@ func (p *GoPinger) GetIPs() []string {
 	return ips
 }
 
-func (p *GoPinger) Ping(IP string) (bool, float64) {
+// TODO: add white/black list for ip
+func (p *GoPinger) Ping(IP string) contracts.PingData {
 	p.log.Debug("starting ping", slog.String("IP", IP))
+
 	pinger, err := ping.NewPinger(IP)
 	if err != nil {
 		p.log.Error("failed to ping ", slog.String("IP", IP), slog.Any("error", err))
-		return false, 0
+		return newPingData(IP, false, time.Now(), 0)
 	}
 
 	pinger.Count = p.packetsCount
@@ -100,10 +122,26 @@ func (p *GoPinger) Ping(IP string) (bool, float64) {
 	stats := pinger.Statistics()
 
 	if stats.PacketsRecv > 0 {
-		p.log.Info("successful ping", slog.String("IP", IP), slog.Any("PacketsSend", pinger.Count),
+		p.log.Debug("successful ping", slog.String("IP", IP), slog.Any("PacketsSend", pinger.Count),
 			slog.Any("PacketsReceived", pinger.PacketsRecv))
-		return true, stats.PacketLoss
+		return newPingData(IP, true, time.Now(), stats.PacketLoss)
 	}
 
-	return false, 0
+	return newPingData(IP, false, time.Now(), stats.PacketLoss)
+}
+
+func (p *GoPinger) SendRequest(u string, data []contracts.PingData) error {
+	req := contracts.ContainerAddReq{Containers: data}
+
+	jsonData, err := json.Marshal(req)
+	if err != nil {
+		return fmt.Errorf("failed to decode json :%w", err)
+	}
+
+	_, err = http.Post(u, "application/json", bytes.NewBuffer(jsonData))
+	if err != nil {
+
+	}
+
+	return nil
 }
