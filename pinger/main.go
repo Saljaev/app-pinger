@@ -4,6 +4,7 @@ import (
 	"app-pinger/pinger/service"
 	"app-pinger/pkg/contracts"
 	"app-pinger/pkg/loger"
+	_ "embed"
 	"fmt"
 	"github.com/docker/docker/client"
 	"github.com/ilyakaznacheev/cleanenv"
@@ -20,9 +21,14 @@ type ConfigPingerSvc struct {
 	PacketsCount int           `env:"PINGER_PACKETS_COUNT"`
 	PingTimeout  time.Duration `env:"PINGER_PING_TIMEOUT"`
 	SvcTimeout   time.Duration `env:"PINGER_SVC_PING_TIMEOUT" `
-	BackendName  string        `env:"BACKEND_NAME"`
-	BackendIP    string        `env:"ADDRESS"`
+	BackendName  string        `env:"BACKEND_HOST"`
+	ServiceName  string        `env:"PINGER_HOST"`
+	BackendPort  string        `env:"BACKEND_PORT"`
+	Network      string        `env:"PINGER_NETWORK"`
 }
+
+//go:embed list.txt
+var filterList string
 
 func main() {
 	var cfg ConfigPingerSvc
@@ -31,7 +37,17 @@ func main() {
 		log.Println("failed to read .env file, default value have been used")
 	}
 
-	cfg.BackendIP = strings.Split(cfg.BackendIP, ":")[1]
+	containerACL := strings.Split(filterList, "\n")
+	whiteList := true
+
+	var list []string
+	if len(containerACL) > 0 {
+		if containerACL[0] == "black" {
+			whiteList = false
+		}
+
+		list = containerACL[1:]
+	}
 
 	log := loger.SetupLogger(cfg.LogLevel)
 
@@ -45,15 +61,16 @@ func main() {
 
 	defer cli.Close()
 
-	pinger := service.NewPingerService(service.NewGoPingerService(cli, log, cfg.PacketsCount, cfg.PingTimeout))
+	pinger := service.NewPingerService(service.NewGoPingerService(cli, log, cfg.PacketsCount, cfg.PingTimeout, cfg.ServiceName))
 
 	log.Info("pinger-server started")
 	log.Debug("service settings", slog.Any("service-timeout", cfg.SvcTimeout),
-		slog.Any("ping-packets", cfg.PacketsCount), slog.Any("ping-timeout", cfg.PingTimeout))
+		slog.Any("ping-packets", cfg.PacketsCount), slog.Any("ping-timeout", cfg.PingTimeout),
+		slog.Any("network", cfg.Network))
 
 	for {
 		//TODO: return name of container
-		ips := pinger.GetIPs()
+		ips := pinger.GetIPs(list, whiteList)
 
 		//TODO: cache for ip containers
 		reach := []contracts.PingData{}
@@ -74,7 +91,7 @@ func main() {
 		}
 		wg.Wait()
 
-		err = pinger.SendRequest(fmt.Sprintf("http://%s:%s/container/add", cfg.BackendName, cfg.BackendIP), reach)
+		err = pinger.SendRequest(fmt.Sprintf("http://%s:%s/container/add", cfg.BackendName, cfg.BackendPort), reach)
 		if err != nil {
 			log.Error("failed to send request", slog.Any("error", err))
 		}

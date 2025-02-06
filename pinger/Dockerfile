@@ -19,6 +19,7 @@ FROM scratch
 
 COPY --from=builder /pinger pinger
 COPY --from=builder /go/src/app-pinger/.env ./
+COPY --from=builder /go/src/app-pinger/pinger/list.txt ./
 
 EXPOSE 8082
 
