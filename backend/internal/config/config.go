@@ -10,7 +10,8 @@ import (
 
 type Config struct {
 	StoragePath string
-	Addr        string        `env:"ADDRESS"`
+	Addr        string        `env:"BACKEND_ADDRESS"`
+	Port        string        `env:"BACKEND_PORT"`
 	Timeout     time.Duration `env:"TIMEOUT"`
 	IdleTimeout time.Duration `env:"IDLE_TIMEOUT"`
 	LogLevel    string        `env:"BACKEND_LOG_LEVEL"`
@@ -32,6 +33,7 @@ func ConfigLoad() *Config {
 	}
 
 	cfg.StoragePath = fmt.Sprintf("postgres://%s:%s@%s:5432/%s?sslmode=disable", cfg.User, cfg.Password, cfg.Host, cfg.DB)
+	cfg.Addr = fmt.Sprintf("%s:%s", cfg.Addr, cfg.Port)
 
 	return &cfg
 }
