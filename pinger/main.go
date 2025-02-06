@@ -68,12 +68,13 @@ func main() {
 		slog.Any("ping-packets", cfg.PacketsCount), slog.Any("ping-timeout", cfg.PingTimeout),
 		slog.Any("network", cfg.Network))
 
+	reach := make(map[string]contracts.PingData)
+
 	for {
-		//TODO: return name of container
 		ips := pinger.GetIPs(list, whiteList)
 
 		//TODO: cache for ip containers
-		reach := []contracts.PingData{}
+		//reach := []contracts.PingData{}
 
 		var wg sync.WaitGroup
 		var mutex = &sync.Mutex{}
@@ -85,13 +86,19 @@ func main() {
 				defer wg.Done()
 				data := pinger.Ping(ip)
 				mutex.Lock()
-				reach = append(reach, data)
+				reach[ip] = data
+
 				mutex.Unlock()
 			}(ip)
 		}
 		wg.Wait()
 
-		err = pinger.SendRequest(fmt.Sprintf("http://%s:%s/container/add", cfg.BackendName, cfg.BackendPort), reach)
+		pingArr := make([]contracts.PingData, 0, len(reach))
+		for _, v := range reach {
+			pingArr = append(pingArr, v)
+		}
+
+		err = pinger.SendRequest(fmt.Sprintf("http://%s:%s/container/add", cfg.BackendName, cfg.BackendPort), pingArr)
 		if err != nil {
 			log.Error("failed to send request", slog.Any("error", err))
 		}
