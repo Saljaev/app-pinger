@@ -2,6 +2,7 @@ package main
 
 import (
 	containershandler "app-pinger/backend/internal/api/handlers/containers"
+	"app-pinger/backend/internal/api/handlers/verifier"
 	"app-pinger/backend/internal/api/utilapi"
 	"app-pinger/backend/internal/config"
 	"app-pinger/backend/internal/usecase"
@@ -26,6 +27,8 @@ import (
 
 func main() {
 	cfg := config.ConfigLoad()
+
+	virifierCfg := config.LoadVerifierConfiger()
 
 	log := loger.SetupLogger(cfg.LogLevel)
 
@@ -69,6 +72,7 @@ func main() {
 	containerUseCase := usecase.NewBackendService(containers)
 
 	containerHandler := containershandler.NewContainersHandler(containerUseCase, *rabbitMQ)
+	verifierHandler := verifier.NewVerifier(virifierCfg.Keys, virifierCfg.RateLimit, virifierCfg.RateTime)
 
 	router := utilapi.NewRouter(log)
 
@@ -77,7 +81,7 @@ func main() {
 		containerHandler.ProcessQueue(log)
 	}()
 
-	router.Handle("/container/getall", containerHandler.GetAll)
+	router.Handle("/container/getall", verifierHandler.Verify, containerHandler.GetAll)
 
 	srv := &http.Server{
 		Addr:         cfg.Addr,

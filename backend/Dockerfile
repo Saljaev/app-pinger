@@ -20,6 +20,7 @@ FROM scratch
 COPY --from=builder /backend backend
 COPY --from=builder /go/src/app-pinger/backend/internal/migrations ./migrations
 COPY --from=builder /go/src/app-pinger/.env ./
+COPY --from=builder /go/src/app-pinger/backend/config/verifier_config.yaml ./
 
 EXPOSE 8082
 

@@ -90,6 +90,10 @@ func (ctx *APIContext) SuccessWithData(data interface{}) {
 	_, _ = ctx.w.Write(jsonData)
 }
 
+func (ctx *APIContext) GetFromQuery(key string) string {
+	return ctx.r.Header.Get(key)
+}
+
 func (ctx *APIContext) Deadline() (deadline time.Time, ok bool) {
 	return ctx.ctx.Deadline()
 }
