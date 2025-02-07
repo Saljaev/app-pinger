@@ -7,6 +7,7 @@ import (
 	"app-pinger/backend/internal/usecase"
 	repo "app-pinger/backend/internal/usecase/repo/postgres"
 	"app-pinger/pkg/loger"
+	queue "app-pinger/pkg/quque"
 	"context"
 	"database/sql"
 	"errors"
@@ -57,15 +58,25 @@ func main() {
 		log.Error("failed to use migrations", slog.Any("error", err))
 	}
 
+	rabbitMQ, err := queue.NewConnection(cfg.RabbitMQPath, cfg.RabbitMQ.Queue)
+	if err != nil {
+		log.Error("failed to create rabbitMQ connection", slog.Any("error", err))
+	}
+	defer rabbitMQ.Close()
+
 	containers := repo.NewContainerRepo(db)
 
 	containerUseCase := usecase.NewBackendService(containers)
 
-	containerHandler := containershandler.NewContainersHandler(containerUseCase)
+	containerHandler := containershandler.NewContainersHandler(containerUseCase, *rabbitMQ)
 
 	router := utilapi.NewRouter(log)
 
-	router.Handle("/container/add", containerHandler.Add)
+	// RabbitMQ обработчик
+	go func() {
+		containerHandler.ProcessQueue(log)
+	}()
+
 	router.Handle("/container/getall", containerHandler.GetAll)
 
 	srv := &http.Server{
