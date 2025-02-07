@@ -1,41 +1,24 @@
 package main
 
 import (
+	"app-pinger/pinger/config"
 	"app-pinger/pinger/service"
 	"app-pinger/pkg/contracts"
 	"app-pinger/pkg/loger"
+	queue "app-pinger/pkg/quque"
 	_ "embed"
-	"fmt"
 	"github.com/docker/docker/client"
-	"github.com/ilyakaznacheev/cleanenv"
-	"log"
 	"log/slog"
 	"strings"
 	"sync"
 	"time"
 )
 
-// TODO: add MAKEFILE to generate default .env
-type ConfigPingerSvc struct {
-	LogLevel     string        `env:"PINGER_LOG_LEVEL"`
-	PacketsCount int           `env:"PINGER_PACKETS_COUNT"`
-	PingTimeout  time.Duration `env:"PINGER_PING_TIMEOUT"`
-	SvcTimeout   time.Duration `env:"PINGER_SVC_PING_TIMEOUT" `
-	BackendName  string        `env:"BACKEND_HOST"`
-	ServiceName  string        `env:"PINGER_HOST"`
-	BackendPort  string        `env:"BACKEND_PORT"`
-	Network      string        `env:"PINGER_NETWORK"`
-}
-
 //go:embed list.txt
 var filterList string
 
 func main() {
-	var cfg ConfigPingerSvc
-
-	if err := cleanenv.ReadEnv(&cfg); err != nil {
-		log.Println("failed to read .env file, default value have been used")
-	}
+	cfg := config.ConfigLoad()
 
 	containerACL := strings.Split(filterList, "\n")
 	whiteList := true
@@ -61,7 +44,13 @@ func main() {
 
 	defer cli.Close()
 
-	pinger := service.NewPingerService(service.NewGoPingerService(cli, log, cfg.PacketsCount, cfg.PingTimeout, cfg.ServiceName))
+	rabbitMQ, err := queue.NewConnection(cfg.RabbitMQPath, cfg.RabbitMQ.Queue)
+	if err != nil {
+		log.Error("failed to create rabbitMQ connection", slog.Any("error", err))
+	}
+	defer rabbitMQ.Close()
+
+	pinger := service.NewPingerService(service.NewGoPingerService(cli, log, cfg.PacketsCount, cfg.PingTimeout, cfg.ServiceName, *rabbitMQ))
 
 	log.Info("pinger-server started")
 	log.Debug("service settings", slog.Any("service-timeout", cfg.SvcTimeout),
@@ -70,6 +59,7 @@ func main() {
 
 	reach := make(map[string]contracts.PingData)
 
+	//TODO: change for ticker
 	for {
 		ips := pinger.GetIPs(list, whiteList)
 
@@ -98,7 +88,7 @@ func main() {
 			pingArr = append(pingArr, v)
 		}
 
-		err = pinger.SendRequest(fmt.Sprintf("http://%s:%s/container/add", cfg.BackendName, cfg.BackendPort), pingArr)
+		err = pinger.SendRequest(pingArr)
 		if err != nil {
 			log.Error("failed to send request", slog.Any("error", err))
 		}

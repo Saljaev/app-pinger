@@ -2,16 +2,14 @@ package service
 
 import (
 	"app-pinger/pkg/contracts"
-	"bytes"
+	queue "app-pinger/pkg/quque"
 	"context"
-	"encoding/json"
 	"fmt"
 	"github.com/docker/docker/api/types"
 	containertypes "github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
 	"github.com/go-ping/ping"
 	"log/slog"
-	"net/http"
 	"strings"
 	"time"
 )
@@ -29,7 +27,7 @@ func newPingData(IP string, isReachable bool, LastPing time.Time, PacketLost flo
 type Pinger interface {
 	GetIPs(list []string, whiteList bool) []string
 	Ping(IP string) contracts.PingData
-	SendRequest(url string, data []contracts.PingData) error
+	SendRequest(data []contracts.PingData) error
 }
 
 // PingerSvc сервис, который выполняет бизнес логику сервиса
@@ -54,8 +52,8 @@ func (p *PingerSvc) Ping(IP string) contracts.PingData {
 }
 
 // SendRequest отправляет запрос к backend-svc с данными ping всех контейнеров
-func (p *PingerSvc) SendRequest(url string, data []contracts.PingData) error {
-	return p.Pinger.SendRequest(url, data)
+func (p *PingerSvc) SendRequest(data []contracts.PingData) error {
+	return p.Pinger.SendRequest(data)
 }
 
 // GoPinger реализация PingerSvc, основанная на Docker SDK и go-ping
@@ -65,20 +63,29 @@ type GoPinger struct {
 	packetsCount int
 	pingTimeout  time.Duration
 	Network      []string
+	rabbitMQ     queue.RabbitMQConnection
 }
 
 // check for implementation
 var _ Pinger = (*GoPinger)(nil)
 
-func NewGoPingerService(cli *client.Client, log *slog.Logger, pCount int, pTimeout time.Duration, containerName string) *GoPinger {
+func NewGoPingerService(
+	c *client.Client,
+	l *slog.Logger,
+	pC int,
+	pT time.Duration,
+	n string,
+	r queue.RabbitMQConnection,
+) *GoPinger {
 	pinger := &GoPinger{
-		cli:          cli,
-		log:          *log,
-		packetsCount: pCount,
-		pingTimeout:  pTimeout,
+		cli:          c,
+		log:          *l,
+		packetsCount: pC,
+		pingTimeout:  pT,
+		rabbitMQ:     r,
 	}
 
-	pinger.searchNetworkByName(containerName)
+	pinger.searchNetworkByName(n)
 
 	return pinger
 }
@@ -248,18 +255,13 @@ func (p *GoPinger) Ping(IP string) contracts.PingData {
 	return newPingData(IP, false, time.Now(), stats.PacketLoss)
 }
 
-// SendRequest отправляет запрос на адрес url с информацией о пингах data
-func (p *GoPinger) SendRequest(url string, data []contracts.PingData) error {
+// SendRequest отправляет запрос на адрес rabbitmq с информацией о пингах data
+func (p *GoPinger) SendRequest(data []contracts.PingData) error {
 	req := contracts.ContainerAddReq{Containers: data}
 
-	jsonData, err := json.Marshal(req)
+	err := p.rabbitMQ.Publish(req)
 	if err != nil {
-		return fmt.Errorf("failed to decode json :%w", err)
-	}
-
-	_, err = http.Post(url, "application/json", bytes.NewBuffer(jsonData))
-	if err != nil {
-
+		return fmt.Errorf("failed to publish data: %w", err)
 	}
 
 	return nil
