@@ -59,30 +59,30 @@ func main() {
 
 	reach := make(map[string]contracts.PingData)
 
+	ticker := time.NewTicker(cfg.SvcTimeout)
 	//TODO: change for ticker
-	for {
-		ips := pinger.GetIPs(list, whiteList)
-
-		//TODO: cache for ip containers
-		//reach := []contracts.PingData{}
+	for range ticker.C {
+		netIPs := pinger.GetIPs(list, whiteList)
 
 		var wg sync.WaitGroup
 		var mutex = &sync.Mutex{}
 
-		for _, ip := range ips {
-			wg.Add(1)
+		for net, ips := range netIPs {
+			for _, ip := range ips {
+				wg.Add(1)
 
-			go func(ip string) {
-				defer wg.Done()
-				data := pinger.Ping(ip)
-				mutex.Lock()
-				reach[ip] = data
+				go func(net, ip string) {
+					defer wg.Done()
+					data := pinger.Ping(net, ip)
+					mutex.Lock()
+					reach[ip] = data
 
-				mutex.Unlock()
-			}(ip)
+					mutex.Unlock()
+				}(net, ip)
+			}
+			wg.Wait()
 		}
 		wg.Wait()
-
 		pingArr := make([]contracts.PingData, 0, len(reach))
 		for _, v := range reach {
 			pingArr = append(pingArr, v)
@@ -92,7 +92,5 @@ func main() {
 		if err != nil {
 			log.Error("failed to send request", slog.Any("error", err))
 		}
-
-		time.Sleep(cfg.SvcTimeout)
 	}
 }

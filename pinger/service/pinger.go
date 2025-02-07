@@ -7,10 +7,12 @@ import (
 	"fmt"
 	"github.com/docker/docker/api/types"
 	containertypes "github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
 	"github.com/go-ping/ping"
 	"log/slog"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -25,8 +27,8 @@ func newPingData(IP string, isReachable bool, LastPing time.Time, PacketLost flo
 
 // Pinger интерфейс, который определяет логику сервиса
 type Pinger interface {
-	GetIPs(list []string, whiteList bool) []string
-	Ping(IP string) contracts.PingData
+	GetIPs(list []string, whiteList bool) map[string][]string
+	Ping(net, IP string) contracts.PingData
 	SendRequest(data []contracts.PingData) error
 }
 
@@ -42,16 +44,16 @@ func NewPingerService(pinger Pinger) *PingerSvc {
 }
 
 // GetIPs получает все доступные IP-адреса контейнеров
-func (p *PingerSvc) GetIPs(list []string, whiteList bool) []string {
+func (p *PingerSvc) GetIPs(list []string, whiteList bool) map[string][]string {
 	return p.Pinger.GetIPs(list, whiteList)
 }
 
-// Ping пингует IP адрес, возвращает доступность адрес и процент потери пакетов
-func (p *PingerSvc) Ping(IP string) contracts.PingData {
-	return p.Pinger.Ping(IP)
+// Ping пингует IP адрес, возвращает данные доступности
+func (p *PingerSvc) Ping(net, IP string) contracts.PingData {
+	return p.Pinger.Ping(net, IP)
 }
 
-// SendRequest отправляет запрос к backend-svc с данными ping всех контейнеров
+// SendRequest отправляет запрос к backend-svc через RabbitMQ с данными ping всех контейнеров
 func (p *PingerSvc) SendRequest(data []contracts.PingData) error {
 	return p.Pinger.SendRequest(data)
 }
@@ -62,8 +64,11 @@ type GoPinger struct {
 	log          slog.Logger
 	packetsCount int
 	pingTimeout  time.Duration
-	Network      []string
 	rabbitMQ     queue.RabbitMQConnection
+	id           string
+	name         string
+	net          map[string]struct{}
+	mu           sync.Mutex
 }
 
 // check for implementation
@@ -83,43 +88,37 @@ func NewGoPingerService(
 		packetsCount: pC,
 		pingTimeout:  pT,
 		rabbitMQ:     r,
+		name:         n,
+		net:          map[string]struct{}{},
+		mu:           sync.Mutex{},
 	}
 
-	pinger.searchNetworkByName(n)
+	pinger.searchOwnIDAndNetwork()
 
 	return pinger
 }
 
-// SearchNetworkByName добавляет в сервис все сети, которые указаны у него в docker-compose.yaml
-func (p *GoPinger) searchNetworkByName(containerName string) {
+// searchOwnIDAndNetwork находит и устанавливает id и сеть контейнера net по своему имени name
+func (p *GoPinger) searchOwnIDAndNetwork() {
 	containers, err := p.getContainerList()
 	if err != nil {
 		p.log.Error("failed to get container list", slog.Any("error", err))
 		return
 	}
 
-	var containerID string
-
 	for _, container := range containers {
-		if p.extractContainerName(container) == containerName {
-			containerID = container.ID
+		if p.extractContainerName(container) == p.name {
+			p.id = container.ID
+			for _, net := range container.NetworkSettings.Networks {
+				p.net[net.NetworkID] = struct{}{}
+			}
 			break
 		}
 	}
-
-	nets, err := p.inspectContainer(containerID)
-	if err != nil {
-		p.log.Error("failed to inspect container", slog.String("ID", containerID), slog.Any("error", err))
-		return
-	}
-
-	for net := range nets.NetworkSettings.Networks {
-		p.Network = append(p.Network, net)
-	}
 }
 
-// GetIPs возвращает список IP-адресов с учетом фильтра, а также его типом (белый/черный список)
-func (p *GoPinger) GetIPs(list []string, whiteList bool) []string {
+// GetIPs возвращает мапу сеть-IP-адреса с учетом фильтра, а также его типом (белый/черный список)
+func (p *GoPinger) GetIPs(list []string, whiteList bool) map[string][]string {
 	p.log.Debug("starting get container list")
 
 	containers, err := p.getContainerList()
@@ -141,7 +140,7 @@ func (p *GoPinger) GetIPs(list []string, whiteList bool) []string {
 		listFilter[container] = struct{}{}
 	}
 
-	var ips []string
+	ips := map[string][]string{}
 	for _, container := range containers {
 		inspect, err := p.inspectContainer(container.ID)
 		if err != nil {
@@ -149,15 +148,17 @@ func (p *GoPinger) GetIPs(list []string, whiteList bool) []string {
 			continue
 		}
 
-		containerIPs := p.filterNetworkIPs(inspect, p.Network)
+		containerIPs := p.filterNetworkIPs(inspect)
 		if len(containerIPs) == 0 {
 			continue
 		}
 
 		containerName := p.extractContainerName(container)
 
-		if p.shouldInclude(containerName, containerIPs, listFilter, hasFilter, whiteList) {
-			ips = append(ips, containerIPs...)
+		for netName, ipList := range containerIPs {
+			if p.shouldInclude(containerName, ipList, listFilter, hasFilter, whiteList) {
+				ips[netName] = append(ips[netName], ipList...)
+			}
 		}
 	}
 	p.log.Debug("successful get containers", slog.Any("containers ips:", ips))
@@ -192,17 +193,14 @@ func (p *GoPinger) extractContainerName(c types.Container) string {
 	return strings.TrimPrefix(c.Names[0], "/")
 }
 
-// filterNetworkIPs возвращает список IP-адресов контейнера info, который находится в одной сети с networks
-func (p *GoPinger) filterNetworkIPs(container types.ContainerJSON, networks []string) []string {
-	var ips []string
+// filterNetworkIPs возвращает список всех IP-адресов всех контейнеров
+func (p *GoPinger) filterNetworkIPs(container types.ContainerJSON) map[string][]string {
+	ips := map[string][]string{}
 	for netName, netSettings := range container.NetworkSettings.Networks {
-		for _, network := range networks {
-			if netName == network {
-				ips = append(ips, netSettings.IPAddress)
-			}
-		}
-
+		ips[netSettings.NetworkID] = append(ips[netName], netSettings.IPAddress)
 	}
+	p.log.Debug("get ips", slog.Any("ips", ips))
+
 	return ips
 }
 
@@ -230,9 +228,25 @@ func (p *GoPinger) shouldInclude(name string, ips []string, filter map[string]st
 	return !whitelist
 }
 
-// Ping пингует IP-адрес и возвращает данные о доступности
-func (p *GoPinger) Ping(IP string) contracts.PingData {
-	p.log.Debug("starting ping", slog.String("IP", IP))
+// Ping пингует IP-адрес и возвращает данные о доступности контейнера в указанной сети
+func (p *GoPinger) Ping(net, IP string) contracts.PingData {
+	p.log.Debug("starting ping", slog.String("network", net), slog.String("IP", IP))
+	err := p.connectToNetwork(net)
+	if err != nil {
+		p.log.Error("failed to switch network", slog.String("network", net), slog.Any("error", err))
+		return newPingData(IP, false, time.Now(), 0)
+	}
+	//p.mu.Lock()
+	//if _, ok := p.net[net]; !ok {
+	//	err := p.connectToNetwork(net)
+	//	p.mu.Unlock()
+	//	if err != nil {
+	//		p.log.Error("failed to switch network", slog.String("network", net), slog.Any("error", err))
+	//		return newPingData(IP, false, time.Now(), 0)
+	//	}
+	//} else {
+	//	p.mu.Unlock()
+	//}
 
 	pinger, err := ping.NewPinger(IP)
 	if err != nil {
@@ -253,6 +267,21 @@ func (p *GoPinger) Ping(IP string) contracts.PingData {
 	}
 
 	return newPingData(IP, false, time.Now(), stats.PacketLoss)
+}
+
+// connectToNetwork подключает pinger к сети указанной сети
+func (p *GoPinger) connectToNetwork(net string) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if _, ok := p.net[net]; ok {
+		return nil
+	}
+	err := p.cli.NetworkConnect(context.Background(), net, p.id, &network.EndpointSettings{})
+	if err != nil {
+		return fmt.Errorf("failed to connect network: %w", err)
+	}
+	p.net[net] = struct{}{}
+	return nil
 }
 
 // SendRequest отправляет запрос на адрес rabbitmq с информацией о пингах data
