@@ -63,15 +63,17 @@ services:
       - .env
   check-1:
     image: alpine
+    container_name: check-1
     command: [ "sh", "-c", "while true; do sleep 3600; done" ]
     networks:
       - containers-network
 
   check-2:
     image: alpine
+    container_name: check-2
     command: [ "sh", "-c", "while true; do sleep 3600; done" ]
     networks:
-      - containers-network
+      - containers-test
 
   db:
     image: postgres:16.6-alpine3.21
@@ -118,4 +120,5 @@ volumes:
   containers:
 networks:
   containers-network:
+  containers-test:
   db-network:

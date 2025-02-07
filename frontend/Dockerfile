@@ -1,4 +1,4 @@
-FROM node:22-alpine3.21 as build
+FROM node:22-alpine3.21 as builder
 
 WORKDIR /app
 
@@ -14,9 +14,9 @@ FROM nginx:1.27-alpine3.21
 
 WORKDIR /etc/nginx
 
-COPY --from=build /app/build /usr/share/nginx/html
+COPY --from=builder /app/build /usr/share/nginx/html
 
-COPY --from=build /app/nginx.conf.template /etc/nginx/nginx.conf.template
+COPY --from=builder /app/nginx.conf.template /etc/nginx/nginx.conf.template
 
 EXPOSE 80
 
