@@ -12,12 +12,17 @@ const IpTable = () => {
   const [error, setError] = useState(null);
 
   const REFRESH_INTERVAL = process.env.REACT_APP_REFRESH_INTERVAL * 1000;
-  const API_LOCATION = process.env.REACT_APP_API_LOCATION || "/api";
+  const API_LOCATION = process.env.REACT_APP_API_LOCATION;
   const API_URL = `${API_LOCATION}container/getall`;
+  const API_KEY = process.env.REACT_APP_API_KEY;
 
   const fetchData = async () => {
     try {
-      const response = await axios.get(API_URL);
+      const response = await axios.get(API_URL, {
+        headers: {
+          'X-API-Key': API_KEY,
+        },
+      });
       const formattedData = response.data.map(item => ({
         ip: item.ip_address,
         isReachable: item.is_reachable,
