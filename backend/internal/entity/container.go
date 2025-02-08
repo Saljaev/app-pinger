@@ -6,5 +6,4 @@ type Container struct {
 	IP          string
 	IsReachable bool
 	LastPing    time.Time
-	PacketLost  float64
 }

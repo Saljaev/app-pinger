@@ -45,7 +45,6 @@ func (c *ContainersHandler) ProcessQueue(log *slog.Logger) {
 				IP:          r.IPAddress,
 				IsReachable: r.IsReachable,
 				LastPing:    lastPing,
-				PacketLost:  r.PackerLost,
 			}
 
 			IP, err := c.containers.Add(context.Background(), container)

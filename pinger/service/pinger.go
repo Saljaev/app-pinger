@@ -16,12 +16,11 @@ import (
 	"time"
 )
 
-func newPingData(IP string, isReachable bool, LastPing time.Time, PacketLost float64) contracts.PingData {
+func newPingData(IP string, isReachable bool, LastPing time.Time) contracts.PingData {
 	return contracts.PingData{
 		IPAddress:   IP,
 		IsReachable: isReachable,
 		LastPing:    LastPing.Format(time.DateTime),
-		PackerLost:  PacketLost,
 	}
 }
 
@@ -234,13 +233,13 @@ func (p *GoPinger) Ping(net, IP string) contracts.PingData {
 	err := p.connectToNetwork(net)
 	if err != nil {
 		p.log.Error("failed to switch network", slog.String("network", net), slog.Any("error", err))
-		return newPingData(IP, false, time.Now(), 0)
+		return newPingData(IP, false, time.Now())
 	}
 
 	pinger, err := ping.NewPinger(IP)
 	if err != nil {
 		p.log.Error("failed to ping ", slog.String("IP", IP), slog.Any("error", err))
-		return newPingData(IP, false, time.Now(), 0)
+		return newPingData(IP, false, time.Now())
 	}
 
 	pinger.Count = p.packetsCount
@@ -252,10 +251,10 @@ func (p *GoPinger) Ping(net, IP string) contracts.PingData {
 	if stats.PacketsRecv > 0 {
 		p.log.Debug("successful ping", slog.String("IP", IP), slog.Any("PacketsSend", pinger.Count),
 			slog.Any("PacketsReceived", pinger.PacketsRecv))
-		return newPingData(IP, true, time.Now(), stats.PacketLoss)
+		return newPingData(IP, true, time.Now())
 	}
 
-	return newPingData(IP, false, time.Now(), stats.PacketLoss)
+	return newPingData(IP, false, time.Now())
 }
 
 // connectToNetwork подключает pinger к сети указанной сети

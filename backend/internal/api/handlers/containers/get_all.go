@@ -7,10 +7,9 @@ import (
 )
 
 type ContainersResp struct {
-	IPAddress   string  `json:"ip_address"`
-	IsReachable bool    `json:"is_reachable"`
-	LastPing    string  `json:"last_ping"`
-	PacketLost  float64 `json:"packet_lost"`
+	IPAddress   string `json:"ip_address"`
+	IsReachable bool   `json:"is_reachable"`
+	LastPing    string `json:"last_ping"`
 }
 
 func (c *ContainersHandler) GetAll(ctx *utilapi.APIContext) {
@@ -29,7 +28,6 @@ func (c *ContainersHandler) GetAll(ctx *utilapi.APIContext) {
 			IPAddress:   container.IP,
 			IsReachable: container.IsReachable,
 			LastPing:    container.LastPing.Format(time.DateTime),
-			PacketLost:  container.PacketLost,
 		}
 	}
 

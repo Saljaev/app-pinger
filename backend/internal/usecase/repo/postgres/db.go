@@ -23,20 +23,18 @@ func NewContainerRepo(db *sql.DB) *ContainerRepo {
 func (c *ContainerRepo) Add(ctx context.Context, container entity.Container) (string, error) {
 	const op = "ContainerRepo - Add"
 
-	query := "INSERT INTO containers(ip_address, is_reachable, last_ping, packet_lost) " +
-		"VALUES($1, $2, $3, $4) " +
+	query := "INSERT INTO containers(ip_address, is_reachable, last_ping) " +
+		"VALUES($1, $2, $3) " +
 		"ON CONFLICT(ip_address) " +
 		"DO UPDATE SET " +
 		"is_reachable = EXCLUDED.is_reachable, " +
-		"last_ping = EXCLUDED.last_ping, " +
-		"packet_lost = EXCLUDED.packet_lost " +
+		"last_ping = EXCLUDED.last_ping " +
 		"WHERE containers.last_ping < EXCLUDED.last_ping " +
 		"RETURNING ip_address"
 
 	var containerID string
 
-	err := c.QueryRowContext(ctx, query, container.IP, container.IsReachable, container.LastPing,
-		container.PacketLost).Scan(&containerID)
+	err := c.QueryRowContext(ctx, query, container.IP, container.IsReachable, container.LastPing).Scan(&containerID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return container.IP, nil
 	}
@@ -51,7 +49,7 @@ func (c *ContainerRepo) Add(ctx context.Context, container entity.Container) (st
 func (c ContainerRepo) GetAll(ctx context.Context) ([]entity.Container, error) {
 	const op = "ContainerRepo - GetAll"
 
-	query := "SELECT ip_address, is_reachable, last_ping, packet_lost FROM containers"
+	query := "SELECT ip_address, is_reachable, last_ping FROM containers"
 
 	rows, err := c.QueryContext(ctx, query)
 	if err != nil {
@@ -65,7 +63,7 @@ func (c ContainerRepo) GetAll(ctx context.Context) ([]entity.Container, error) {
 	for rows.Next() {
 		var container entity.Container
 
-		rows.Scan(&container.IP, &container.IsReachable, &container.LastPing, &container.PacketLost)
+		rows.Scan(&container.IP, &container.IsReachable, &container.LastPing)
 
 		containers = append(containers, container)
 	}
