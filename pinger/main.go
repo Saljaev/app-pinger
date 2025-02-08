@@ -5,7 +5,7 @@ import (
 	"app-pinger/pinger/service"
 	"app-pinger/pkg/contracts"
 	"app-pinger/pkg/loger"
-	queue "app-pinger/pkg/quque"
+	queue "app-pinger/pkg/queue"
 	_ "embed"
 	"github.com/docker/docker/client"
 	"log/slog"
@@ -60,7 +60,6 @@ func main() {
 	reach := make(map[string]contracts.PingData)
 
 	ticker := time.NewTicker(cfg.SvcTimeout)
-	//TODO: change for ticker
 	for range ticker.C {
 		netIPs := pinger.GetIPs(list, whiteList)
 

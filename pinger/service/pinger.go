@@ -2,7 +2,7 @@ package service
 
 import (
 	"app-pinger/pkg/contracts"
-	queue "app-pinger/pkg/quque"
+	queue "app-pinger/pkg/queue"
 	"context"
 	"fmt"
 	"github.com/docker/docker/api/types"

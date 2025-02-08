@@ -2,7 +2,6 @@ package contracts
 
 import "unicode/utf8"
 
-// TODO: add container name or id?
 type PingData struct {
 	IPAddress   string  `json:"ip_address"`
 	IsReachable bool    `json:"is_reachable"`
