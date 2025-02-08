@@ -20,7 +20,7 @@ ___
 
 ___
 ## Использование
-1. Склонировать репозиторий: ```git clone https://github.com/Saljaev/app-pinger```
+1. Склонировать репозиторий: ```git clone https://github.com/Saljaev/app-pinger```, прописать ```cd app-pinger```.
    <br>*Использование происходит в среде Docker.*
 2. Прописать ```make prepare```, который сгенерирует файлы конфигурации и .env для работы приложения.
 3. Прописать ```make build``` (собирает docker compose), а затем ```make start``` (docker compose up).
