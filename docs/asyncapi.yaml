@@ -1,0 +1,58 @@
+asyncapi: 3.0.0
+info:
+  title: Приложение для мониторинга доступности контейнеров
+  version: 1.0.0
+  description: API для обмена сообщениями о контейнерах через RabbitMQ.
+servers:
+  app-pinger:
+    host: user:password/rabbitmq:5672
+    protocol: amqp
+    description: Очередь сообщений с динамически изменяющимся параметрами user и password
+channels:
+  container.publish:
+    messages:
+      containerPublishMessage:
+        payload:
+          $ref: '#/components/schemas/ContainerArray'
+    description: Очередь контейнеров
+  container.consume:
+    messages:
+      consumeContainerMessage:
+        contentType: application/json
+        payload:
+          $ref: '#/components/schemas/ContainerArray'
+    description: Очередь контейнеров
+operations:
+  publishContainer:
+    action: send
+    channel:
+      $ref: '#/channels/container.publish'
+  consumeContainer:
+    action: receive
+    channel:
+      $ref: '#/channels/container.consume'
+    summary: Получение контейнера
+components:
+  schemas:
+    Container:
+      type: object
+      required:
+        - ip_address
+        - is_reachable
+        - last_ping
+      properties:
+        ip_address:
+          type: string
+          example: 172.10.0.1
+          minLength: 1
+        is_reachable:
+          type: boolean
+          example: true
+        last_ping:
+          type: string
+          format: data-time
+          example: '2025-02-08 10:00:00'
+    ContainerArray:
+      type: array
+      items:
+        $ref: "#/components/schemas/Container"

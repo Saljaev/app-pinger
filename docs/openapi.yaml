@@ -1,0 +1,73 @@
+openapi: 3.0.0
+info:
+  title: Приложение для мониторинга доступности контейнеров
+  version: "1.0.0"
+servers:
+  - url: http://localhost:3000
+    description: API (с Nginx прокси)
+
+paths:
+  /:
+    get:
+      tags:
+        - user
+      summary: Получение данных о доступности контейнеров
+      servers:
+        - url: http://localhost:3000
+      description: |
+        Вызывается эндпоин `/`, Nginx выгружает статический файл html,
+        JS делает запрос на `api/v1/container/getall`, затем Nginx проксирует
+        запрос на `backend/container/getall`.
+      parameters:
+        - name: X-API-Key
+          in: header
+          required: true
+          schema:
+            type: string
+            example: secret-key
+          description: API-ключ для аутентификации
+      responses:
+        '200':
+          description: Успешное получение
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ContainerArrayResponse"
+        '401':
+          description: Невалидный API-ключ
+        '429':
+          description: Слишком много запросов
+        '500':
+          description: Внутренняя ошибка
+
+components:
+  schemas:
+    Container:
+      type: object
+      required:
+        - ip_address
+        - is_reachable
+        - last_ping
+      properties:
+        ip_address:
+          type: string
+          example: 172.10.0.1
+          minLength: 1
+        is_reachable:
+          type: boolean
+          example: true
+        last_ping:
+          type: string
+          format: data-time
+          example: '2025-02-08 10:00:00'
+    ContainerArray:
+      type: array
+      items:
+        $ref: "#/components/schemas/Container"
+    ContainerArrayResponse:
+      type: object
+      properties:
+        containers:
+          type: array
+          items:
+            $ref: "#/components/schemas/Container"
