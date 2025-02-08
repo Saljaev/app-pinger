@@ -2,7 +2,7 @@ package containershandler
 
 import (
 	"app-pinger/backend/internal/usecase"
-	queue "app-pinger/pkg/quque"
+	queue "app-pinger/pkg/queue"
 )
 
 type ContainersHandler struct {

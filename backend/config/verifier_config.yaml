@@ -1,5 +1,4 @@
 rate_limit: 5
 rate_time: 30s
 keys:
-  - key1
-  - key2
+  - frontend-secret-key

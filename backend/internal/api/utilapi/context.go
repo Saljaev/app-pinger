@@ -90,7 +90,7 @@ func (ctx *APIContext) SuccessWithData(data interface{}) {
 	_, _ = ctx.w.Write(jsonData)
 }
 
-func (ctx *APIContext) GetFromQuery(key string) string {
+func (ctx *APIContext) GetFromHeader(key string) string {
 	return ctx.r.Header.Get(key)
 }
 

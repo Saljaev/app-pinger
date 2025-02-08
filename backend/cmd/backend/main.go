@@ -8,7 +8,7 @@ import (
 	"app-pinger/backend/internal/usecase"
 	repo "app-pinger/backend/internal/usecase/repo/postgres"
 	"app-pinger/pkg/loger"
-	queue "app-pinger/pkg/quque"
+	queue "app-pinger/pkg/queue"
 	"context"
 	"database/sql"
 	"errors"

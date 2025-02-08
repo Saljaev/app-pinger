@@ -2,15 +2,31 @@ package verifier
 
 import (
 	"app-pinger/backend/internal/api/utilapi"
+	"crypto/subtle"
+	"errors"
 	"net/http"
 	"time"
 )
 
 func (v *Verifier) Verify(ctx *utilapi.APIContext) {
-	//TODO: make auth
+	receivedKey := ctx.GetFromHeader("X-API-Key")
+	auth := false
+	for _, key := range v.Auth.apiKeys {
+		if subtle.ConstantTimeCompare([]byte(receivedKey), []byte(key)) == 1 {
+			auth = true
+			break
+		}
+	}
+
+	if !auth {
+		ctx.Error("unauthorized request", errors.New("invalid API-Key"))
+		ctx.WriteFailure(http.StatusUnauthorized, "invalid request")
+		return
+	}
+
 	v.RateLimiter.mu.Lock()
 	defer v.RateLimiter.mu.Unlock()
-	ip := ctx.GetFromQuery("X-Real-IP")
+	ip := ctx.GetFromHeader("X-Real-IP")
 	if count, ok := v.RateLimiter.rateLimiter[ip]; ok {
 		if count > v.RateLimiter.rateLimit {
 			ctx.Debug("to many request from", "IP", ip)
