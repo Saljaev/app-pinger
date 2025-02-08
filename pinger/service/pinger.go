@@ -236,17 +236,6 @@ func (p *GoPinger) Ping(net, IP string) contracts.PingData {
 		p.log.Error("failed to switch network", slog.String("network", net), slog.Any("error", err))
 		return newPingData(IP, false, time.Now(), 0)
 	}
-	//p.mu.Lock()
-	//if _, ok := p.net[net]; !ok {
-	//	err := p.connectToNetwork(net)
-	//	p.mu.Unlock()
-	//	if err != nil {
-	//		p.log.Error("failed to switch network", slog.String("network", net), slog.Any("error", err))
-	//		return newPingData(IP, false, time.Now(), 0)
-	//	}
-	//} else {
-	//	p.mu.Unlock()
-	//}
 
 	pinger, err := ping.NewPinger(IP)
 	if err != nil {

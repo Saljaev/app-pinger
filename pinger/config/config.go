@@ -5,7 +5,6 @@ import (
 	"time"
 )
 
-// TODO: add MAKEFILE to generate default .env
 type Config struct {
 	LogLevel     string        `env:"PINGER_LOG_LEVEL"`
 	PacketsCount int           `env:"PINGER_PACKETS_COUNT"`
