@@ -112,6 +112,8 @@ services:
       SWAGGER_JSON: /docs/openapi.yaml
     volumes:
       - ./docs:/docs
+    logging:
+      driver: none
 
   asyncapi-ui:
     image: asyncapi/studio
@@ -122,6 +124,8 @@ services:
       ASYNCAPI_FILE_URL: usr/share/nginx/html/docs/asyncapi.yaml
     volumes:
       - ./docs:/usr/share/nginx/html/docs
+    logging:
+      driver:  none
 
 volumes:
   containers:
