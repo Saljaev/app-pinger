@@ -61,19 +61,6 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
     env_file:
       - .env
-  check-1:
-    image: alpine
-    container_name: check-1
-    command: [ "sh", "-c", "while true; do sleep 3600; done" ]
-    networks:
-      - containers-network
-
-  check-2:
-    image: alpine
-    container_name: check-2
-    command: [ "sh", "-c", "while true; do sleep 3600; done" ]
-    networks:
-      - containers-test
 
   db:
     image: postgres:16.6-alpine3.21
@@ -115,6 +102,26 @@ services:
     restart: always
     networks:
       - containers-network
+
+  swagger-ui:
+    image: swaggerapi/swagger-ui
+    container_name: swagger-ui
+    ports:
+      - "9000:8080"
+    environment:
+      SWAGGER_JSON: /docs/openapi.yaml
+    volumes:
+      - ./docs:/docs
+
+  asyncapi-ui:
+    image: asyncapi/studio
+    container_name: asyncapi-ui
+    ports:
+      - "9001:80"
+    environment:
+      ASYNCAPI_FILE_URL: usr/share/nginx/html/docs/asyncapi.yaml
+    volumes:
+      - ./docs:/usr/share/nginx/html/docs
 
 volumes:
   containers:
