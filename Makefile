@@ -1,5 +1,6 @@
-ENV_FILE=docs/.env
-CONFIG_FILE=docs/verifier_config.yaml
+ENV_FILE=.env
+CONFIG_DIR=backend/config
+CONFIG_FILE=backend/config/verifier_config.yaml
 
 .PHONY: prepare build start stop delete docs-start docs-stop
 
@@ -39,6 +40,7 @@ prepare:
 	echo "RABBITMQ_QUEUE=ping_results" >> $(ENV_FILE)
 	echo "Файл .env создан успешно!"
 	echo "Создаю файл verifier_config.yaml в $(CONFIG_FILE)"
+	mkdir $(CONFIG_DIR)
 	touch $(CONFIG_FILE)
 	echo "rate_limit: 5" > $(CONFIG_FILE)
 	echo "rate_time: 30s" >> $(CONFIG_FILE)
