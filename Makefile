@@ -1,7 +1,7 @@
 ENV_FILE=docs/.env
 CONFIG_FILE=docs/verifier_config.yaml
 
-.PHONY: prepare build start stop delete
+.PHONY: prepare build start stop delete docs-start docs-stop
 
 prepare:
 	echo "Создаю файл .env в $(ENV_FILE)"
@@ -50,7 +50,7 @@ build:
 	docker compose build
 
 start:
-	docker compose up
+	docker compose up -d
 
 stop:
 	docker compose down
@@ -58,5 +58,10 @@ stop:
 delete:
 	docker compose down -v
 
+docs-start:
+	docker compose -f ./docs/docker-compose.yaml -p docs up
+
+docs-stop:
+	docker compose -f ./docs/docker-compose.yaml -p docs down
 
 
