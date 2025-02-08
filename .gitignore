@@ -1,3 +1,4 @@
 .gitattributes
 .idea
 .env
+.DS_Store
