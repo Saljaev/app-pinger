@@ -39,8 +39,10 @@ func (v *Verifier) Verify(ctx *utilapi.APIContext) {
 		v.RateLimiter.lastAccess[ip] = time.Now()
 	}
 
-	if time.Now().Sub(v.RateLimiter.lastAccess[ip]) > v.RateLimiter.rateTime {
+	time.AfterFunc(v.RateLimiter.rateTime, func() {
+		v.RateLimiter.mu.Lock()
+		defer v.RateLimiter.mu.Unlock()
 		v.RateLimiter.rateLimiter[ip] = 1
 		v.RateLimiter.lastAccess[ip] = time.Now()
-	}
+	})
 }
