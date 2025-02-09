@@ -61,7 +61,7 @@ delete:
 	docker compose down -v
 
 docs-start:
-	docker compose -f ./docs/docker-compose.yaml -p docs up
+	docker compose -f ./docs/docker-compose.yaml -p docs up -d
 
 docs-stop:
 	docker compose -f ./docs/docker-compose.yaml -p docs down
