@@ -71,7 +71,7 @@ func main() {
 
 	containerUseCase := usecase.NewBackendService(containers)
 
-	containerHandler := containershandler.NewContainersHandler(containerUseCase, *rabbitMQ)
+	containerHandler := containershandler.NewContainersHandler(containerUseCase, rabbitMQ)
 	verifierHandler := verifier.NewVerifier(virifierCfg.Keys, virifierCfg.RateLimit, virifierCfg.RateTime)
 
 	router := utilapi.NewRouter(log)

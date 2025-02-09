@@ -12,6 +12,12 @@ type RabbitMQConnection struct {
 	queue   string
 }
 
+type RabbitMQ interface {
+	Publish(data interface{}) error
+	Consume() (<-chan amqp.Delivery, error)
+	Close()
+}
+
 func NewConnection(uri, queue string) (*RabbitMQConnection, error) {
 	conn, err := amqp.Dial(uri)
 	if err != nil {

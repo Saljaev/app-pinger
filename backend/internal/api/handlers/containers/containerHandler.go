@@ -7,10 +7,10 @@ import (
 
 type ContainersHandler struct {
 	containers usecase.ContainerRepo
-	rabbitMQ   queue.RabbitMQConnection
+	rabbitMQ   queue.RabbitMQ
 }
 
-func NewContainersHandler(c usecase.ContainerRepo, r queue.RabbitMQConnection) *ContainersHandler {
+func NewContainersHandler(c usecase.ContainerRepo, r queue.RabbitMQ) *ContainersHandler {
 	return &ContainersHandler{
 		containers: c,
 		rabbitMQ:   r,
