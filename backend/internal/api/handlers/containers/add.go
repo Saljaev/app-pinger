@@ -16,7 +16,7 @@ type ContainerAddResp struct {
 func (c *ContainersHandler) ProcessQueue(log *slog.Logger) {
 	msgs, err := c.rabbitMQ.Consume()
 	if err != nil {
-		log.Error("failed get messages from rabbitmq", err)
+		log.Error("failed get messages from rabbitmq", slog.Any("error", err))
 		return
 	}
 
@@ -24,20 +24,21 @@ func (c *ContainersHandler) ProcessQueue(log *slog.Logger) {
 		var req contracts.ContainerAddReq
 
 		if err := json.Unmarshal(msg.Body, &req); err != nil {
-			log.Error("failed to decode RabbitMQ message", err)
+			log.Error("failed to decode RabbitMQ message", slog.Any("error", err))
 			continue
 		}
 
 		if !req.IsValid() {
 			log.Error("failed decode json", slog.Any("error", "invalid request"))
+			continue
 		}
 
-		log.Debug("received request", "request", req)
+		log.Debug("received request", "request", slog.Any("error", err))
 
 		for _, r := range req.Containers {
 			lastPing, err := time.Parse(time.DateTime, r.LastPing)
 			if err != nil {
-				log.Error("failed encode containers", err)
+				log.Error("failed encode containers", slog.Any("error", err))
 				return
 			}
 
@@ -49,7 +50,7 @@ func (c *ContainersHandler) ProcessQueue(log *slog.Logger) {
 
 			IP, err := c.containers.Add(context.Background(), container)
 			if err != nil || IP != r.IPAddress {
-				log.Error("failed to add container", err)
+				log.Error("failed to add container", slog.Any("error", err))
 				return
 			}
 		}
