@@ -4,6 +4,7 @@ import (
 	"app-pinger/pkg/contracts"
 	queue "app-pinger/pkg/queue"
 	"context"
+	"errors"
 	"fmt"
 	"github.com/docker/docker/api/types"
 	containertypes "github.com/docker/docker/api/types/container"
@@ -15,14 +16,6 @@ import (
 	"sync"
 	"time"
 )
-
-func newPingData(IP string, isReachable bool, LastPing time.Time) contracts.PingData {
-	return contracts.PingData{
-		IPAddress:   IP,
-		IsReachable: isReachable,
-		LastPing:    LastPing.Format(time.DateTime),
-	}
-}
 
 // Pinger интерфейс, который определяет логику сервиса
 type Pinger interface {
@@ -63,7 +56,7 @@ type GoPinger struct {
 	log          slog.Logger
 	packetsCount int
 	pingTimeout  time.Duration
-	rabbitMQ     queue.RabbitMQConnection
+	rabbitMQ     queue.RabbitMQ
 	id           string
 	name         string
 	net          map[string]struct{}
@@ -79,7 +72,7 @@ func NewGoPingerService(
 	pC int,
 	pT time.Duration,
 	n string,
-	r queue.RabbitMQConnection,
+	r queue.RabbitMQ,
 ) *GoPinger {
 	pinger := &GoPinger{
 		cli:          c,
@@ -257,6 +250,14 @@ func (p *GoPinger) Ping(net, IP string) contracts.PingData {
 	return newPingData(IP, false, time.Now())
 }
 
+func newPingData(IP string, isReachable bool, LastPing time.Time) contracts.PingData {
+	return contracts.PingData{
+		IPAddress:   IP,
+		IsReachable: isReachable,
+		LastPing:    LastPing.Format(time.DateTime),
+	}
+}
+
 // connectToNetwork подключает pinger к сети указанной сети
 func (p *GoPinger) connectToNetwork(net string) error {
 	p.mu.Lock()
@@ -275,6 +276,10 @@ func (p *GoPinger) connectToNetwork(net string) error {
 // SendRequest отправляет запрос на адрес rabbitmq с информацией о пингах data
 func (p *GoPinger) SendRequest(data []contracts.PingData) error {
 	req := contracts.ContainerAddReq{Containers: data}
+
+	if !req.IsValid() {
+		return fmt.Errorf("failed to send request: %w", errors.New("invalid request"))
+	}
 
 	err := p.rabbitMQ.Publish(req)
 	if err != nil {

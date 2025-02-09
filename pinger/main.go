@@ -50,7 +50,7 @@ func main() {
 	}
 	defer rabbitMQ.Close()
 
-	pinger := service.NewPingerService(service.NewGoPingerService(cli, log, cfg.PacketsCount, cfg.PingTimeout, cfg.ServiceName, *rabbitMQ))
+	pinger := service.NewPingerService(service.NewGoPingerService(cli, log, cfg.PacketsCount, cfg.PingTimeout, cfg.ServiceName, rabbitMQ))
 
 	log.Info("pinger-server started")
 	log.Debug("service settings", slog.Any("service-timeout", cfg.SvcTimeout),
